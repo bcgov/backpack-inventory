@@ -1,0 +1,1 @@
+ALTER TABLE `offices` ADD `region_id` text NOT NULL REFERENCES regions(id);
