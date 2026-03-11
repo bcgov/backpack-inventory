@@ -11,14 +11,15 @@
     inventory_count: 'Inventory Count',
   };
 
-  const offices = data.offices;
-  const filters = data.filters;
+  // $derived keeps these reactive when data changes (e.g. after filter navigation)
+  const offices = $derived(data.offices);
+  const filters = $derived(data.filters);
 
   // Pivot history rows: unique months as rows, actions as columns
   type HistoryRow = { month: string; action: string; txnCount: number; totalItems: number };
-  const history = data.history as HistoryRow[];
-  const months: string[] = [...new Set(history.map(r => r.month))].sort().reverse();
-  const historyActions: string[] = [...new Set(history.map(r => r.action))].sort();
+  const history = $derived(data.history as HistoryRow[]);
+  const months = $derived([...new Set(history.map(r => r.month))].sort().reverse());
+  const historyActions = $derived([...new Set(history.map(r => r.action))].sort());
 
   function historyCell(month: string, action: string): HistoryRow | null {
     return history.find(r => r.month === month && r.action === action) ?? null;
@@ -26,9 +27,9 @@
 
   // Pivot staff rows: unique staff as rows, actions as columns
   type StaffRow = { userId: string; userName: string; action: string; txnCount: number };
-  const staffUsage = data.staffUsage as StaffRow[];
-  const staffMembers: [string, string][] = [...new Map(staffUsage.map(r => [r.userId, r.userName] as [string, string])).entries()];
-  const staffActions: string[]  = [...new Set(staffUsage.map(r => r.action))].sort();
+  const staffUsage = $derived(data.staffUsage as StaffRow[]);
+  const staffMembers = $derived([...new Map(staffUsage.map(r => [r.userId, r.userName] as [string, string])).entries()]);
+  const staffActions = $derived([...new Set(staffUsage.map(r => r.action))].sort());
 
   function staffCell(userId: string, action: string): number {
     return staffUsage.find(r => r.userId === userId && r.action === action)?.txnCount ?? 0;

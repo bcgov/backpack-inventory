@@ -15,7 +15,8 @@ COPY package.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build
+# Increase Node heap limit to avoid OOM kills in memory-constrained build pods
+RUN NODE_OPTIONS=--max-old-space-size=2048 npm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS runtime
