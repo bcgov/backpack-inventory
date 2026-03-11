@@ -40,6 +40,14 @@ COPY --from=build /opt/app-root/src/build ./build
 # Create the uploads directory used by the file upload feature
 RUN mkdir -p uploads/receipts
 
+# Copy DB init script and SQLite migration files
+COPY scripts/init-db.mjs ./scripts/init-db.mjs
+COPY src/lib/server/db/migrations/sqlite/*.sql ./migrations/
+
+# Copy the entrypoint script
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 # OpenShift runs containers with an arbitrary UID in group 0.
 # Setting group ownership + g=u ensures the process can write uploads
 # and read app files regardless of which UID OpenShift assigns.
@@ -53,4 +61,4 @@ ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV NODE_ENV=production
 
-CMD ["node", "/opt/app-root/src/build/index.js"]
+CMD ["/opt/app-root/src/entrypoint.sh"]
