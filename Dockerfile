@@ -17,9 +17,11 @@ COPY package.json ./
 RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 
 COPY . .
-# Give V8 more of the available pod budget. Native heap (Rollup's Rust binary,
-# Node runtime, OS) sits on top of this, so leave ~400 MB headroom in a 2 GB pod.
-RUN NODE_OPTIONS=--max-old-space-size=1536 npm run build
+# ROLLUP_SKIP_LOAD_NATIVE_BINDINGS forces the WASM fallback, keeping Rollup's
+# memory inside the V8 heap rather than adding to native heap on top of it.
+# NODE_OPTIONS caps V8 heap at 1536 MB, leaving ~500 MB for Node runtime +
+# WASM linear memory + OS overhead within the 2 GB pod limit.
+RUN ROLLUP_SKIP_LOAD_NATIVE_BINDINGS=true NODE_OPTIONS=--max-old-space-size=1536 npm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS runtime

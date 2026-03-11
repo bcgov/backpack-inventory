@@ -3,8 +3,15 @@
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
 
-  const { rows, total, page, pageSize, filters, offices, users, actions } = data;
-  const totalPages = Math.ceil(total / pageSize);
+  const rows     = $derived(data.rows);
+  const total    = $derived(data.total);
+  const page     = $derived(data.page);
+  const pageSize = $derived(data.pageSize);
+  const filters  = $derived(data.filters);
+  const offices  = $derived(data.offices);
+  const users    = $derived(data.users);
+  const actions  = $derived(data.actions);
+  const totalPages = $derived(Math.ceil(total / pageSize));
 
   const ACTION_LABELS: Record<string, string> = {
     receive:         'Receive',

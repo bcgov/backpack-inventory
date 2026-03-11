@@ -4,7 +4,10 @@
   import type { ForecastColor } from '$lib/types.js';
 
   let { data }: { data: PageData } = $props();
-  const { officeGroups, offices, selectedOffice, config } = data;
+  const officeGroups   = $derived(data.officeGroups);
+  const offices        = $derived(data.offices);
+  const selectedOffice = $derived(data.selectedOffice);
+  const config         = $derived(data.config);
 
   /** Tailwind classes for each colour state */
   const colorClasses: Record<ForecastColor, { badge: string; row: string; text: string }> = {
