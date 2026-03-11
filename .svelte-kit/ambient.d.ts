@@ -38,28 +38,13 @@
  * The above values will be the same _even if_ different values for `ENVIRONMENT` or `PUBLIC_BASE_URL` are set at runtime, as they are statically replaced in your code with their build time values.
  */
 declare module '$env/static/private' {
-	export const DB_DRIVER: string;
-	export const DATABASE_URL: string;
-	export const DB_LOG: string;
-	export const DEV_AUTH_USER_ID: string;
-	export const AUTH_SECRET: string;
-	export const OIDC_ISSUER: string;
-	export const OIDC_CLIENT_ID: string;
-	export const OIDC_CLIENT_SECRET: string;
-	export const AUTH_URL: string;
-	export const UPLOAD_DRIVER: string;
-	export const MAX_UPLOAD_BYTES: string;
-	export const LOW_INVENTORY_THRESHOLD: string;
-	export const BURN_RATE_DAYS: string;
-	export const DAYS_GREEN: string;
-	export const DAYS_YELLOW: string;
 	export const NVM_INC: string;
 	export const TERM_PROGRAM: string;
 	export const NODE: string;
 	export const INIT_CWD: string;
 	export const NVM_CD_FLAGS: string;
-	export const TERM: string;
 	export const SHELL: string;
+	export const TERM: string;
 	export const HOMEBREW_REPOSITORY: string;
 	export const TMPDIR: string;
 	export const npm_config_global_prefix: string;
@@ -94,8 +79,8 @@ declare module '$env/static/private' {
 	export const npm_config_node_gyp: string;
 	export const npm_package_version: string;
 	export const XPC_SERVICE_NAME: string;
-	export const HOME: string;
 	export const SHLVL: string;
+	export const HOME: string;
 	export const HOMEBREW_PREFIX: string;
 	export const npm_config_cache: string;
 	export const LOGNAME: string;
@@ -195,28 +180,13 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
-		DB_DRIVER: string;
-		DATABASE_URL: string;
-		DB_LOG: string;
-		DEV_AUTH_USER_ID: string;
-		AUTH_SECRET: string;
-		OIDC_ISSUER: string;
-		OIDC_CLIENT_ID: string;
-		OIDC_CLIENT_SECRET: string;
-		AUTH_URL: string;
-		UPLOAD_DRIVER: string;
-		MAX_UPLOAD_BYTES: string;
-		LOW_INVENTORY_THRESHOLD: string;
-		BURN_RATE_DAYS: string;
-		DAYS_GREEN: string;
-		DAYS_YELLOW: string;
 		NVM_INC: string;
 		TERM_PROGRAM: string;
 		NODE: string;
 		INIT_CWD: string;
 		NVM_CD_FLAGS: string;
-		TERM: string;
 		SHELL: string;
+		TERM: string;
 		HOMEBREW_REPOSITORY: string;
 		TMPDIR: string;
 		npm_config_global_prefix: string;
@@ -251,8 +221,8 @@ declare module '$env/dynamic/private' {
 		npm_config_node_gyp: string;
 		npm_package_version: string;
 		XPC_SERVICE_NAME: string;
-		HOME: string;
 		SHLVL: string;
+		HOME: string;
 		HOMEBREW_PREFIX: string;
 		npm_config_cache: string;
 		LOGNAME: string;

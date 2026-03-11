@@ -8,8 +8,11 @@ USER root
 
 WORKDIR /opt/app-root/src
 
-COPY package*.json ./
-RUN npm ci
+# Copy only package.json (not package-lock.json) so npm resolves
+# platform-specific optional dependencies for Linux rather than
+# replaying a lockfile generated on macOS/Windows.
+COPY package.json ./
+RUN npm install
 
 COPY . .
 RUN npm run build
