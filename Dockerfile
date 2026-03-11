@@ -1,42 +1,37 @@
-# Install the app dependencies in a full Node docker image
-FROM registry.access.redhat.com/ubi9/nodejs-20:latest
+# ── Build stage ───────────────────────────────────────────────────────────────
+FROM registry.access.redhat.com/ubi9/nodejs-20:latest as build
 
-# Create a non-root user and group named 'node'
-USER root
-RUN groupadd -r node && useradd -r -g node -s /bin/bash -m node
+WORKDIR /app
 
-# Set the working directory
-WORKDIR /opt/app-root/src
+COPY package*.json ./
+RUN npm ci
 
-# Copy package.json, and optionally package-lock.json if it exists
-COPY package.json package-lock.json* ./
-
-# Adjust permissions for the package files
-RUN chown -R node:node /opt/app-root/src
-
-# Switch to the node user
-USER node
-
-# Clear npm cache
-RUN npm cache clean --force
-
-# Install app dependencies
-RUN npm ci --no-strict-ssl --no-shrinkwrap --verbose || npm install --prefer-online --verbose
-
-# Switch back to root user to copy the application code
-USER root
-
-# Copy the application code
-COPY . ./
-
-# Adjust permissions for the application code
-RUN chown -R node:node /opt/app-root/src
-
-# Switch back to the node user
-USER node
-
-# Build the Next.js application
+COPY . .
 RUN npm run build
 
-# Start the application
-CMD ["npm", "start"]
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS runtime
+
+WORKDIR /app
+
+# Install production dependencies only
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Copy the SvelteKit build output (adapter-node produces build/)
+COPY --from=build /app/build ./build
+
+# Create the uploads directory used by the file upload feature
+RUN mkdir -p uploads/receipts
+
+# OpenShift runs containers with an arbitrary UID in group 0.
+# Setting group ownership + g=u ensures the process can write uploads
+# and read app files regardless of which UID OpenShift assigns.
+RUN chown -R 0:0 /app && chmod -R g=u /app
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOST=0.0.0.0
+ENV NODE_ENV=production
+
+CMD ["node", "build/index.js"]
