@@ -21,7 +21,7 @@
     { href: `${base}/reports`,                   label: 'Reports' },
   ];
 
-  const canAdmin = hasPermission(data.user.role, 'manage_users');
+  const canAdmin = $derived(hasPermission(data.user.role, 'manage_users'));
 </script>
 
 <div class="min-h-screen bg-gray-50">

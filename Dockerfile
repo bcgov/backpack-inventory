@@ -21,7 +21,7 @@ COPY . .
 # memory inside the V8 heap rather than adding to native heap on top of it.
 # NODE_OPTIONS caps V8 heap at 1536 MB, leaving ~500 MB for Node runtime +
 # WASM linear memory + OS overhead within the 2 GB pod limit.
-RUN ROLLUP_SKIP_LOAD_NATIVE_BINDINGS=true NODE_OPTIONS=--max-old-space-size=1536 npm run build
+RUN NODE_OPTIONS=--max-old-space-size=1536 npm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS runtime

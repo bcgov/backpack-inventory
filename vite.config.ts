@@ -15,6 +15,10 @@ export default defineConfig({
 			// OpenShift build pods set CI=true; default is 20 which can exhaust a 2 GB limit.
 			maxParallelFileOps: process.env.CI ? 3 : 20,
 		},
+		// Run SSR and client builds sequentially rather than concurrently.
+		// Both builds hold their full module graphs in memory during the rendering
+		// phase; running them at the same time doubles peak memory in a 2 GB pod.
+		concurrentBuilds: !process.env.CI,
 	},
 	test: {
 		expect: { requireAssertions: true },
