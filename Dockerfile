@@ -12,11 +12,14 @@ WORKDIR /opt/app-root/src
 # platform-specific optional dependencies for Linux rather than
 # replaying a lockfile generated on macOS/Windows.
 COPY package.json ./
-RUN npm install
+# Skip Playwright browser downloads — Chromium/Firefox/WebKit are not needed
+# for a production build and each binary is ~300-500 MB.
+RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
 
 COPY . .
-# Increase Node heap limit to avoid OOM kills in memory-constrained build pods
-RUN NODE_OPTIONS=--max-old-space-size=1024 npm run build
+# Give V8 more of the available pod budget. Native heap (Rollup's Rust binary,
+# Node runtime, OS) sits on top of this, so leave ~400 MB headroom in a 2 GB pod.
+RUN NODE_OPTIONS=--max-old-space-size=1536 npm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS runtime
