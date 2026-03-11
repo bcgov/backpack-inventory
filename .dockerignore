@@ -1,0 +1,7 @@
+.svelte-kit
+node_modules
+build
+dev.db
+uploads
+.env
+*.local
