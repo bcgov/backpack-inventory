@@ -18,8 +18,8 @@
 <form method="POST" action="?/addProduct" use:enhance
       class="mb-8 flex flex-wrap gap-2 items-end p-4 bg-gray-50 rounded border">
   <div>
-    <label class="block text-xs font-medium text-gray-600 mb-1">Category</label>
-    <select name="categoryId" bind:value={newCategoryId} required
+    <label for="categoryId" class="block text-xs font-medium text-gray-600 mb-1">Category</label>
+    <select id="categoryId" name="categoryId" bind:value={newCategoryId} required
             class="rounded border-gray-300 text-sm py-2 px-3 border">
       <option value="">— select —</option>
       {#each data.categories as cat (cat.id)}
@@ -28,8 +28,8 @@
     </select>
   </div>
   <div>
-    <label class="block text-xs font-medium text-gray-600 mb-1">Product Name</label>
-    <input type="text" name="name" bind:value={newName} required
+    <label for="productName" class="block text-xs font-medium text-gray-600 mb-1">Product Name</label>
+    <input id="productName" type="text" name="name" bind:value={newName} required
            placeholder="e.g. HandSanitizer"
            class="rounded border-gray-300 text-sm py-2 px-3 border w-48" />
   </div>

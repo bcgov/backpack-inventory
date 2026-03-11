@@ -81,7 +81,7 @@
 <style>
   @media print {
     /* Hide browser chrome elements when printing */
-    nav, aside { display: none !important; }
+    :global(nav), :global(aside) { display: none !important; }
     :global(main) { margin-left: 0 !important; }
   }
 </style>

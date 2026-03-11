@@ -11,6 +11,9 @@ export default defineConfig({
 	build: {
 		rollupOptions: {
 			external: ['postgres'],
+			// Limit parallel file processing in memory-constrained CI/build pods.
+			// OpenShift build pods set CI=true; default is 20 which can exhaust a 2 GB limit.
+			maxParallelFileOps: process.env.CI ? 3 : 20,
 		},
 	},
 	test: {
