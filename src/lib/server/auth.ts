@@ -24,6 +24,7 @@ import { randomUUID } from 'crypto';
 import { getDb, getSchema } from '$lib/server/db/index.js';
 
 export const { handle, signIn, signOut } = SvelteKitAuth({
+  trustHost: true,
   providers: [
     MicrosoftEntraID({
       clientId: env.AZURE_AD_CLIENT_ID,
