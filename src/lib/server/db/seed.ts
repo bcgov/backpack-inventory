@@ -191,17 +191,17 @@ const PRODUCT_DATA: Array<{
   {
     category: 'Cereal Bar/Snack',
     sortOrder: 1,
-    items: ['Apple', 'Blueberry', 'TeaCookies'],
+    items: ['Apple', 'Blueberry', 'Tea Cookies'],
   },
   {
     category: 'Clothing Item',
     sortOrder: 2,
     items: [
       'Socks',
-      'UnderwearMenS', 'UnderwearMenM', 'UnderwearMenL', 'UnderwearMenXL',
-      'UnderwearWomenS', 'UnderwearWomenM', 'UnderwearWomenL', 'UnderwearWomenXl',
-      'WinterGloves',
-      'RainPoncho',
+      'Underwear Men S', 'Underwear Men M', 'Underwear Men L', 'Underwear Men XL',
+      'Underwear Women S', 'Underwear Women M', 'Underwear Women L', 'Underwear Women XL',
+      'Winter Gloves',
+      'Rain Poncho',
     ],
   },
   {
@@ -212,12 +212,12 @@ const PRODUCT_DATA: Array<{
   {
     category: 'Fire Safety Item',
     sortOrder: 4,
-    items: ['Co2Monitors', 'FireBlanket', 'FireExtinguisher', 'FireRetardantTarp', 'PortableLantern'],
+    items: ['CO2 Monitors', 'Fire Blanket', 'Fire Extinguisher', 'Fire Retardant Tarp', 'Portable Lantern'],
   },
   {
     category: 'Fruit Cup',
     sortOrder: 5,
-    items: ['FruitSalad', 'MandarinOranges', 'Peaches', 'Pears'],
+    items: ['Fruit Salad', 'Mandarin Oranges', 'Peaches', 'Pears'],
   },
   {
     category: 'Hygiene Item',
@@ -227,17 +227,17 @@ const PRODUCT_DATA: Array<{
   {
     category: 'Juice',
     sortOrder: 7,
-    items: ['Apple', 'BerryFusion', 'OrangePeach'],
+    items: ['Apple', 'Berry Fusion', 'Orange Peach'],
   },
   {
     category: 'Menstrual Product',
     sortOrder: 8,
-    items: ['OvernightPads', 'TamponRegular', 'TamponSuper', 'UltraThin'],
+    items: ['Overnight Pads', 'Tampon Regular', 'Tampon Super', 'Ultra Thin'],
   },
   {
     category: 'Misc. Item',
     sortOrder: 9,
-    items: ['FirstAidKit', 'HandWarmers', 'LiceTreatment', 'ScabiesTreatment', 'Spoons', 'ZiplocBag'],
+    items: ['First Aid Kit', 'Hand Warmers', 'Lice Treatment', 'Scabies Treatment', 'Spoons', 'Ziploc Bag'],
   },
 ];
 

@@ -19,6 +19,8 @@
 		"db:studio": "drizzle-kit studio",
 		"db:seed": "npx tsx src/lib/server/db/seed.ts",
 		"db:reset": "rm -f dev.db && npm run db:migrate && npm run db:seed",
+		"db:seed:dev":  "npx tsx src/lib/server/db/seed-dev.ts",
+		"db:reset:dev": "rm -f dev.db && rm -rf uploads/receipts/dev-* && npm run db:migrate && npm run db:seed && npm run db:seed:dev",
 		"db:generate:pg": "DB_DRIVER=postgres drizzle-kit generate",
 		"db:migrate:pg": "DB_DRIVER=postgres drizzle-kit migrate"
 	},
