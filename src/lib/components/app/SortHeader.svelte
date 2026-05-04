@@ -25,6 +25,7 @@
 
   async function onClick() {
     const href = buildSortHref(page.url, field, current ?? null, paramPrefix);
+    // eslint-disable-next-line svelte/no-navigation-without-resolve
     await goto(href, { keepFocus: true, noScroll: true, replaceState: true });
   }
 </script>
