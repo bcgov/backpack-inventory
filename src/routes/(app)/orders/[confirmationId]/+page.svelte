@@ -1,10 +1,13 @@
 <script lang="ts">
   import { base } from '$app/paths';
+  import { enhance } from '$app/forms';
   import type { PageData, ActionData } from './$types';
   let { data, form }: { data: PageData; form: ActionData } = $props();
   const order      = $derived(data.detail.order);
   const lineItems  = $derived(data.detail.lineItems);
   const events     = $derived(data.detail.receiveEvents);
+  let cancelOpen = $state(false);
+  let cancelMessage = $state(data.cancellationDraft);
   const STATUS_BADGE: Record<string, string> = {
     pending:   'bg-amber-100  text-amber-800',
     partial:   'bg-blue-100   text-blue-800',
@@ -25,6 +28,12 @@
   <span class="inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded {STATUS_BADGE[order.status]}">
     {order.status.toUpperCase()}
   </span>
+  {#if order.status === 'pending' || order.status === 'partial'}
+    <button type="button" onclick={() => (cancelOpen = true)}
+            class="ml-3 text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">
+      Cancel order
+    </button>
+  {/if}
 
   {#if order.notes}
     <p class="mt-4 text-sm text-gray-700"><span class="text-gray-500">Notes:</span> {order.notes}</p>
@@ -104,5 +113,26 @@
         </li>
       {/each}
     </ul>
+  {/if}
+
+  {#if cancelOpen}
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" role="dialog">
+      <div class="bg-white rounded p-6 max-w-xl w-full mx-4">
+        <h2 class="font-semibold text-gray-800 mb-3">Cancel order {order.confirmationId}</h2>
+        <p class="text-xs text-gray-500 mb-2">This message will be emailed to all recipients on file for this office.</p>
+        <form method="POST" action="?/cancel" use:enhance>
+          <textarea name="message" bind:value={cancelMessage} rows="10"
+                    class="w-full rounded border-gray-300 text-sm py-2 px-3 border bg-white font-mono"></textarea>
+          <div class="mt-3 flex justify-end gap-2">
+            <button type="button" onclick={() => (cancelOpen = false)}
+                    class="px-3 py-1.5 border rounded text-sm">Back</button>
+            <button type="submit"
+                    class="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700">
+              Cancel order &amp; send email
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   {/if}
 </div>

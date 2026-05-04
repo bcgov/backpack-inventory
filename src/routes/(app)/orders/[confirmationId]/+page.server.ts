@@ -3,13 +3,29 @@ import { writeFile } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import type { PageServerLoad, Actions } from './$types';
 import { getDb, getSchema } from '$lib/server/db/index.js';
-import { getOrder, receiveOrderBatch } from '$lib/server/services/orders.js';
+import { getOrder, receiveOrderBatch, cancelOrder } from '$lib/server/services/orders.js';
+import { getTemplate, renderTemplate } from '$lib/server/services/orderTemplates.js';
 
 export const load: PageServerLoad = async ({ locals, params }) => {
   const db = await getDb(); const schema = await getSchema(); const user = locals.user!;
   try {
     const detail = await getOrder(db, schema, user, params.confirmationId);
-    return { detail };
+    const cancelTpl = await getTemplate(db, schema, 'order_cancelled');
+    const cancellationDraft = renderTemplate(cancelTpl, {
+      orderId: detail.order.confirmationId,
+      officeNumber: detail.order.officeNumber,
+      officeName: detail.order.officeName,
+      itemsAlreadyReceived: detail.lineItems
+        .filter((l) => l.quantityReceived > 0)
+        .map((l) => `  - ${l.productName ?? l.otherDescription} × ${l.quantityReceived}`)
+        .join('\n') || '  (none)',
+      itemsRemaining: detail.lineItems
+        .filter((l) => l.remaining > 0)
+        .map((l) => `  - ${l.productName ?? l.otherDescription} × ${l.remaining}`)
+        .join('\n') || '  (none)',
+      cancelledBy: user.name,
+    }).body;
+    return { detail, cancellationDraft };
   } catch (e) {
     throw error(404, e instanceof Error ? e.message : 'Order not found');
   }
@@ -40,6 +56,18 @@ export const actions: Actions = {
     }
     try {
       await receiveOrderBatch(db, schema, user, detail.order.id, { lines, notes, shippingReceiptPath });
+      return { success: true };
+    } catch (e) {
+      return fail(400, { error: e instanceof Error ? e.message : 'Failed' });
+    }
+  },
+  cancel: async ({ request, locals, params }) => {
+    const db = await getDb(); const schema = await getSchema(); const user = locals.user!;
+    const detail = await getOrder(db, schema, user, params.confirmationId);
+    const message = String((await request.formData()).get('message') ?? '').trim();
+    if (!message) return fail(400, { error: 'Cancellation message is required' });
+    try {
+      await cancelOrder(db, schema, user, detail.order.id, message);
       return { success: true };
     } catch (e) {
       return fail(400, { error: e instanceof Error ? e.message : 'Failed' });
