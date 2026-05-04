@@ -29,10 +29,13 @@ const PROTECTED_ROUTES: Array<{ prefix: string; permission?: AppPermission }> = 
   { prefix: '/transactions' },
   { prefix: '/scan' },
   { prefix: '/inventory-count' },
-  { prefix: '/reconcile',    permission: 'reconcile_count' },
-  { prefix: '/audit-log',    permission: 'view_audit_log' },
-  { prefix: '/reports',      permission: 'view_reports' },
-  { prefix: '/admin',        permission: 'manage_users' },
+  { prefix: '/reconcile',            permission: 'reconcile_count' },
+  { prefix: '/audit-log',            permission: 'view_audit_log' },
+  { prefix: '/reports',              permission: 'view_reports' },
+  { prefix: '/orders/new',           permission: 'create_order' },
+  { prefix: '/orders',               permission: 'view_orders' },
+  { prefix: '/admin/email-templates', permission: 'manage_email_settings' },
+  { prefix: '/admin',                permission: 'manage_users' },
 ];
 
 // ─── User resolution handle ───────────────────────────────────────────────────
