@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
-import { ROLE_SCOPE_MAP } from '$lib/types.js';
+import { ROLE_SCOPE_MAP, ROLE_PERMISSIONS } from '$lib/types.js';
 import type { SessionUser, UserRole } from '$lib/types.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -255,4 +255,42 @@ export async function toggleOffice(
     .set({ isActive })
     .where(eq(schema.offices.id, officeId))
     .run();
+}
+
+// ─── Office email recipients ──────────────────────────────────────────────────
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function listRecipients(
+  db: AnyDB, schema: AnySchema, _user: SessionUser, officeId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ email: schema.officeEmailRecipients.email })
+    .from(schema.officeEmailRecipients)
+    .where(eq(schema.officeEmailRecipients.officeId, officeId));
+  return rows.map((r: { email: string }) => r.email);
+}
+
+export async function setOfficeRecipients(
+  db: AnyDB, schema: AnySchema, user: SessionUser, officeId: string, emails: string[],
+): Promise<void> {
+  if (!ROLE_PERMISSIONS[user.role].has('manage_users')) {
+    throw new Error(`Your role (${user.role}) does not have permission to manage office recipients`);
+  }
+  const cleaned = [...new Set(emails.map((e) => e.trim()).filter(Boolean))];
+  for (const e of cleaned) {
+    if (!EMAIL_REGEX.test(e)) throw new Error(`Invalid email address: ${e}`);
+  }
+  db.transaction((tx: AnyDB) => {
+    tx.delete(schema.officeEmailRecipients)
+      .where(eq(schema.officeEmailRecipients.officeId, officeId))
+      .run();
+    for (const email of cleaned) {
+      tx.insert(schema.officeEmailRecipients).values({
+        id: randomUUID(),
+        officeId,
+        email,
+      }).run();
+    }
+  });
 }

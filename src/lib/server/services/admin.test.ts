@@ -5,11 +5,13 @@ import {
   listUsers, updateUser,
   listCategories, addProduct, toggleProduct,
   listOffices, toggleOffice,
+  listRecipients, setOfficeRecipients,
 } from './admin.js';
 import type { SessionUser } from '../../types.js';
 
 let ctx: ReturnType<typeof createTestDb>;
 let managerUser: SessionUser;
+let supervisor: SessionUser;
 
 beforeEach(() => {
   ctx = createTestDb();
@@ -17,6 +19,8 @@ beforeEach(() => {
   seedTestProduct(ctx.db);
   const id = seedTestUser(ctx.db, { role: 'manager', regionId: 'region-test', teamId: null });
   managerUser = { id, name: 'Manager', email: 'm@m.com', role: 'manager', teamId: null, regionId: 'region-test' };
+  const supId = seedTestUser(ctx.db, { role: 'supervisor', teamId: 'team-test', regionId: 'region-test' });
+  supervisor = { id: supId, name: 'Sup', email: 's@s.com', role: 'supervisor', teamId: 'team-test', regionId: 'region-test' };
 });
 
 describe('listUsers', () => {
@@ -114,5 +118,34 @@ describe('toggleOffice', () => {
     await toggleOffice(ctx.db, ctx.schema, managerUser, 'office-test', false);
     const [o] = await ctx.db.select().from(ctx.schema.offices);
     expect(o.isActive).toBe(false);
+  });
+});
+
+describe('office email recipients', () => {
+  it('starts empty for an office with no recipients', async () => {
+    const list = await listRecipients(ctx.db, ctx.schema, supervisor, 'office-test');
+    expect(list).toEqual([]);
+  });
+
+  it('replaces the recipient list atomically', async () => {
+    await setOfficeRecipients(ctx.db, ctx.schema, supervisor, 'office-test', ['a@x.com', 'b@x.com']);
+    let list = await listRecipients(ctx.db, ctx.schema, supervisor, 'office-test');
+    expect(list.sort()).toEqual(['a@x.com', 'b@x.com']);
+    await setOfficeRecipients(ctx.db, ctx.schema, supervisor, 'office-test', ['c@x.com']);
+    list = await listRecipients(ctx.db, ctx.schema, supervisor, 'office-test');
+    expect(list).toEqual(['c@x.com']);
+  });
+
+  it('rejects invalid email formats', async () => {
+    await expect(
+      setOfficeRecipients(ctx.db, ctx.schema, supervisor, 'office-test', ['not-an-email']),
+    ).rejects.toThrow(/email/i);
+  });
+
+  it('rejects users without manage_users', async () => {
+    const ci: SessionUser = { ...supervisor, role: 'ci_specialist' };
+    await expect(
+      setOfficeRecipients(ctx.db, ctx.schema, ci, 'office-test', ['a@x.com']),
+    ).rejects.toThrow(/permission/i);
   });
 });
