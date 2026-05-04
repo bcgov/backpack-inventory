@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createTestDb, seedTestOffice, seedTestProduct, seedTestUser,
 } from '../db/test-db.js';
-import { createOrder, listOrders, getOrder } from './orders.js';
+import { createOrder, listOrders, getOrder, cancelOrder, receiveOrderBatch } from './orders.js';
 import type { SessionUser } from '$lib/types.js';
 
 let ctx: ReturnType<typeof createTestDb>;
@@ -123,5 +123,115 @@ describe('getOrder', () => {
       status: 'pending', createdByUserId: supervisorId, createdAt: new Date().toISOString(),
     }).run();
     await expect(getOrder(ctx.db, ctx.schema, supervisor, 'OUTSIDE1')).rejects.toThrow();
+  });
+});
+
+describe('cancelOrder', () => {
+  it('transitions pending → cancelled and writes the cancellation message', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 5 }],
+    });
+    await cancelOrder(ctx.db, ctx.schema, supervisor, orderId, 'Custom message body');
+    const [o] = ctx.db.select().from(ctx.schema.orders).all();
+    expect(o.status).toBe('cancelled');
+    expect(o.cancellationMessage).toBe('Custom message body');
+    expect(o.cancelledByUserId).toBe(supervisor.id);
+  });
+
+  it('rejects users without cancel_order', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 1 }],
+    });
+    const ci: SessionUser = { ...supervisor, role: 'ci_specialist' };
+    await expect(cancelOrder(ctx.db, ctx.schema, ci, orderId, 'msg')).rejects.toThrow(/permission/i);
+  });
+
+  it('blocks cancelling an already-received order', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 1 }],
+    });
+    ctx.db.update(ctx.schema.orders).set({ status: 'received' }).run();
+    await expect(cancelOrder(ctx.db, ctx.schema, supervisor, orderId, 'msg')).rejects.toThrow(/cannot.*cancel/i);
+  });
+});
+
+describe('receiveOrderBatch', () => {
+  it('creates a receive transaction and transitions to partial', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 10 }],
+    });
+    const [line] = ctx.db.select().from(ctx.schema.orderLineItems).all();
+    const result = await receiveOrderBatch(ctx.db, ctx.schema, supervisor, orderId, {
+      lines: [{ orderLineItemId: line.id, quantityReceived: 4 }],
+    });
+    expect(result.newStatus).toBe('partial');
+    const [o] = ctx.db.select().from(ctx.schema.orders).all();
+    expect(o.status).toBe('partial');
+    const [updated] = ctx.db.select().from(ctx.schema.orderLineItems).all();
+    expect(updated.quantityReceived).toBe(4);
+    // Transaction was created
+    const txns = ctx.db.select().from(ctx.schema.transactions).all();
+    expect(txns).toHaveLength(1);
+    expect(txns[0].action).toBe('receive');
+    // Receive event recorded
+    const events = ctx.db.select().from(ctx.schema.orderReceiveEvents).all();
+    expect(events).toHaveLength(1);
+    expect(events[0].transactionId).toBe(result.transactionId);
+  });
+
+  it('transitions to received when fully fulfilled', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 5 }],
+    });
+    const [line] = ctx.db.select().from(ctx.schema.orderLineItems).all();
+    const r = await receiveOrderBatch(ctx.db, ctx.schema, supervisor, orderId, {
+      lines: [{ orderLineItemId: line.id, quantityReceived: 5 }],
+    });
+    expect(r.newStatus).toBe('received');
+  });
+
+  it('allows a second batch on a partial order to close it out', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 10 }],
+    });
+    const [line] = ctx.db.select().from(ctx.schema.orderLineItems).all();
+    await receiveOrderBatch(ctx.db, ctx.schema, supervisor, orderId, {
+      lines: [{ orderLineItemId: line.id, quantityReceived: 4 }],
+    });
+    const r = await receiveOrderBatch(ctx.db, ctx.schema, supervisor, orderId, {
+      lines: [{ orderLineItemId: line.id, quantityReceived: 6 }],
+    });
+    expect(r.newStatus).toBe('received');
+  });
+
+  it('rejects users without receive_order', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [{ productId: 'prod-test', quantityOrdered: 1 }],
+    });
+    const [line] = ctx.db.select().from(ctx.schema.orderLineItems).all();
+    const directorOnly: SessionUser = { ...supervisor, role: 'director_3p', teamId: null, regionId: null };
+    await expect(receiveOrderBatch(ctx.db, ctx.schema, directorOnly, orderId, {
+      lines: [{ orderLineItemId: line.id, quantityReceived: 1 }],
+    })).rejects.toThrow(/permission/i);
+  });
+
+  it('skips lines with quantityReceived = 0 and does not create empty transactions', async () => {
+    const { orderId } = await createOrder(ctx.db, ctx.schema, supervisor, {
+      officeId: 'office-test',
+      lineItems: [
+        { productId: 'prod-test', quantityOrdered: 5 },
+      ],
+    });
+    const [line] = ctx.db.select().from(ctx.schema.orderLineItems).all();
+    await expect(receiveOrderBatch(ctx.db, ctx.schema, supervisor, orderId, {
+      lines: [{ orderLineItemId: line.id, quantityReceived: 0 }],
+    })).rejects.toThrow(/at least one/i);
   });
 });

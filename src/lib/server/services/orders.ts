@@ -4,6 +4,7 @@ import { ROLE_PERMISSIONS } from '$lib/types.js';
 import { getOfficeIdsForUser, assertOfficeInScope } from './scope.js';
 import { sendEmail } from './email.js';
 import { getTemplate, renderTemplate } from './orderTemplates.js';
+import { createTransaction } from './transactions.js';
 import type { SessionUser, OrderStatus } from '$lib/types.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -286,4 +287,144 @@ export async function getOrder(
     })),
     receiveEvents: receiveRows,
   };
+}
+
+export async function cancelOrder(
+  db: AnyDB, schema: AnySchema, user: SessionUser, orderId: string, message: string,
+): Promise<void> {
+  if (!ROLE_PERMISSIONS[user.role].has('cancel_order')) {
+    throw new Error(`Your role (${user.role}) does not have permission to cancel orders`);
+  }
+
+  const [order] = await db
+    .select({ id: schema.orders.id, officeId: schema.orders.officeId, status: schema.orders.status })
+    .from(schema.orders)
+    .where(eq(schema.orders.id, orderId))
+    .limit(1);
+  if (!order) throw new Error('Order not found');
+  if (order.status !== 'pending' && order.status !== 'partial') {
+    throw new Error(`Cannot cancel an order in ${order.status} status`);
+  }
+  await assertOfficeInScope(db, schema, user, order.officeId);
+
+  const now = new Date().toISOString();
+  await db.update(schema.orders).set({
+    status: 'cancelled',
+    cancelledAt: now,
+    cancelledByUserId: user.id,
+    cancellationMessage: message,
+  }).where(eq(schema.orders.id, orderId));
+
+  // Send cancellation email (non-fatal)
+  const recipients = await getRecipientsForOffice(db, schema, order.officeId);
+  if (recipients.length) {
+    await sendEmail(db, schema, {
+      to: recipients,
+      subject: `Order cancelled — ${orderId.slice(0, 8).toUpperCase()}`,
+      body: message,
+      relatedKind: 'order_cancelled',
+      relatedId: orderId,
+    });
+  }
+}
+
+export async function receiveOrderBatch(
+  db: AnyDB, schema: AnySchema, user: SessionUser, orderId: string,
+  input: {
+    lines: Array<{ orderLineItemId: string; quantityReceived: number }>;
+    shippingReceiptPath?: string;
+    notes?: string;
+  },
+): Promise<{ transactionId: string; newStatus: 'partial' | 'received' }> {
+  if (!ROLE_PERMISSIONS[user.role].has('receive_order')) {
+    throw new Error(`Your role (${user.role}) does not have permission to receive orders`);
+  }
+  const positive = input.lines.filter((l) => l.quantityReceived > 0);
+  if (!positive.length) throw new Error('Receive must include at least one line with quantity > 0');
+
+  const [order] = await db
+    .select({ id: schema.orders.id, officeId: schema.orders.officeId, status: schema.orders.status })
+    .from(schema.orders)
+    .where(eq(schema.orders.id, orderId))
+    .limit(1);
+  if (!order) throw new Error('Order not found');
+  if (order.status !== 'pending' && order.status !== 'partial') {
+    throw new Error(`Cannot receive against an order in ${order.status} status`);
+  }
+  await assertOfficeInScope(db, schema, user, order.officeId);
+
+  // Look up the line items to get productIds and check they belong to this order
+  const lineIds = positive.map((l) => l.orderLineItemId);
+  const lineRows = await db
+    .select({
+      id: schema.orderLineItems.id,
+      productId: schema.orderLineItems.productId,
+      quantityOrdered: schema.orderLineItems.quantityOrdered,
+      quantityReceived: schema.orderLineItems.quantityReceived,
+      isOther: schema.orderLineItems.isOther,
+      otherDescription: schema.orderLineItems.otherDescription,
+    })
+    .from(schema.orderLineItems)
+    .where(and(eq(schema.orderLineItems.orderId, order.id), inArray(schema.orderLineItems.id, lineIds)));
+  if (lineRows.length !== positive.length) throw new Error('Some line items do not belong to this order');
+
+  // Build transaction line items. Skip lines with no productId (isOther line items
+  // can't go through the inventory transaction path; record them in a separate row).
+  const txLineItems = positive
+    .map((p) => {
+      const row = lineRows.find((r: { id: string }) => r.id === p.orderLineItemId);
+      if (!row || !row.productId) return null;
+      return { productId: row.productId, quantity: p.quantityReceived };
+    })
+    .filter((x): x is { productId: string; quantity: number } => x !== null);
+
+  if (!txLineItems.length) {
+    throw new Error('Receive must include at least one product line (other-text lines cannot be received via inventory)');
+  }
+
+  // Create the receive transaction
+  const txResult = await createTransaction(db, schema, user, {
+    action: 'receive',
+    officeId: order.officeId,
+    performedByUserId: user.id,
+    lineItems: txLineItems,
+    notes: input.notes,
+    shippingReceiptPath: input.shippingReceiptPath,
+  });
+
+  // Record the receive event + bump quantityReceived on each line
+  const eventId = randomUUID();
+  const now = new Date().toISOString();
+  db.transaction((tx: AnyDB) => {
+    tx.insert(schema.orderReceiveEvents).values({
+      id: eventId,
+      orderId: order.id,
+      transactionId: txResult.transactionId,
+      receivedByUserId: user.id,
+      receivedAt: now,
+      shippingReceiptPath: input.shippingReceiptPath ?? null,
+    }).run();
+    for (const p of positive) {
+      const row = lineRows.find((r: { id: string }) => r.id === p.orderLineItemId)!;
+      tx.update(schema.orderLineItems)
+        .set({ quantityReceived: row.quantityReceived + p.quantityReceived })
+        .where(eq(schema.orderLineItems.id, row.id))
+        .run();
+    }
+  });
+
+  // Determine new status — re-query line items to compute fulfillment
+  const after = await db
+    .select({
+      quantityOrdered: schema.orderLineItems.quantityOrdered,
+      quantityReceived: schema.orderLineItems.quantityReceived,
+    })
+    .from(schema.orderLineItems)
+    .where(eq(schema.orderLineItems.orderId, order.id));
+  const fullyReceived = after.every((r: { quantityOrdered: number; quantityReceived: number }) => r.quantityReceived >= r.quantityOrdered);
+  const newStatus: 'partial' | 'received' = fullyReceived ? 'received' : 'partial';
+
+  await db.update(schema.orders).set({ status: newStatus }).where(eq(schema.orders.id, order.id));
+
+  return { transactionId: txResult.transactionId, newStatus };
 }
