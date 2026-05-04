@@ -19,7 +19,7 @@
 		"db:studio": "drizzle-kit studio",
 		"db:seed": "npx tsx src/lib/server/db/seed.ts",
 		"db:reset": "rm -f dev.db && npm run db:migrate && npm run db:seed",
-		"db:seed:dev":  "npx tsx src/lib/server/db/seed-dev.ts",
+		"db:seed:dev": "npx tsx src/lib/server/db/seed-dev.ts",
 		"db:reset:dev": "rm -f dev.db && rm -rf uploads/receipts/dev-* && npm run db:migrate && npm run db:seed && npm run db:seed:dev",
 		"db:generate:pg": "DB_DRIVER=postgres drizzle-kit generate",
 		"db:migrate:pg": "DB_DRIVER=postgres drizzle-kit migrate"
@@ -35,6 +35,7 @@
 		"@tailwindcss/vite": "^4.1.18",
 		"@types/better-sqlite3": "^7.6.13",
 		"@types/node": "^22",
+		"@types/nodemailer": "^8.0.0",
 		"@types/qrcode": "^1.5.6",
 		"@vitest/browser-playwright": "^4.0.18",
 		"drizzle-kit": "^0.31.8",
@@ -57,6 +58,7 @@
 		"@auth/sveltekit": "^1.11.1",
 		"better-sqlite3": "^12.6.2",
 		"dotenv": "^17.3.1",
+		"nodemailer": "^7.0.13",
 		"qrcode": "^1.5.4"
 	}
 }
