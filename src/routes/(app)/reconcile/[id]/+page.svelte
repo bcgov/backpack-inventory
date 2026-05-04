@@ -1,5 +1,8 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { page } from '$app/state';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import { parseSortParam, compareBy } from '$lib/utils/sort.js';
   import type { PageData, ActionData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -7,6 +10,24 @@
   const count      = $derived(data.detail.count);
   const comparison = $derived(data.detail.comparison);
   const isPending  = $derived(count.status === 'pending');
+
+  const sort = $derived(parseSortParam(page.url));
+
+  type Row = (typeof comparison)[number];
+
+  function getter(field: string): (r: Row) => unknown {
+    switch (field) {
+      case 'product':       return (r) => r.productName;
+      case 'physicalCount': return (r) => r.physicalQuantity;
+      case 'systemStock':   return (r) => r.systemQuantity;
+      case 'discrepancy':   return (r) => r.discrepancy;
+      default:              return (r) => r.productName;
+    }
+  }
+
+  const sortedComparison = $derived(
+    sort ? [...comparison].sort(compareBy(getter(sort.field), sort.dir)) : comparison,
+  );
 
   function discrepancyClass(d: number): string {
     if (d === 0) return 'text-gray-500';
@@ -61,14 +82,14 @@
     <table class="w-full text-sm border-collapse">
       <thead>
         <tr class="border-b text-left text-gray-500">
-          <th class="py-2 pr-4 font-medium">Product</th>
-          <th class="py-2 pr-4 font-medium text-right">Physical count</th>
-          <th class="py-2 pr-4 font-medium text-right">System stock</th>
-          <th class="py-2 font-medium text-right">Discrepancy</th>
+          <th class="py-2 pr-4 font-medium"><SortHeader label="Product"                            field="product"       current={sort} /></th>
+          <th class="py-2 pr-4 font-medium text-right"><SortHeader label="Physical count" field="physicalCount" current={sort} align="right" /></th>
+          <th class="py-2 pr-4 font-medium text-right"><SortHeader label="System stock"   field="systemStock"   current={sort} align="right" /></th>
+          <th class="py-2 font-medium text-right"><SortHeader label="Discrepancy"          field="discrepancy"   current={sort} align="right" /></th>
         </tr>
       </thead>
       <tbody>
-        {#each comparison as row (row.productId)}
+        {#each sortedComparison as row (row.productId)}
           <tr class="border-b hover:bg-gray-50">
             <td class="py-2 pr-4">
               <span class="text-gray-400 text-xs mr-1">{row.categoryName}</span>
