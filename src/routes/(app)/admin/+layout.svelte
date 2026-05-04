@@ -4,10 +4,11 @@
   let { children }: { children: Snippet } = $props();
 
   const tabs = [
-    { href: `${base}/admin/users`,     label: 'Users' },
-    { href: `${base}/admin/products`,  label: 'Products' },
-    { href: `${base}/admin/offices`,   label: 'Offices' },
-    { href: `${base}/admin/qr-codes`,  label: 'QR Codes' },
+    { href: `${base}/admin/users`,           label: 'Users' },
+    { href: `${base}/admin/products`,        label: 'Products' },
+    { href: `${base}/admin/offices`,         label: 'Offices' },
+    { href: `${base}/admin/email-templates`, label: 'Email Templates' },
+    { href: `${base}/admin/qr-codes`,        label: 'QR Codes' },
   ];
 </script>
 
