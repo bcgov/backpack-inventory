@@ -2,12 +2,39 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import type { ForecastColor } from '$lib/types.js';
+  import { page } from '$app/state';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import { parseSortParam, compareBy } from '$lib/utils/sort.js';
 
   let { data }: { data: PageData } = $props();
   const officeGroups   = $derived(data.officeGroups);
   const offices        = $derived(data.offices);
   const selectedOffice = $derived(data.selectedOffice);
   const config         = $derived(data.config);
+
+  const sort = $derived(parseSortParam(page.url));
+
+  type Item = (typeof officeGroups)[number]['items'][number];
+
+  function getter(field: string): (item: Item) => unknown {
+    switch (field) {
+      case 'product':       return (i) => i.productName;
+      case 'qty':           return (i) => i.currentQty;
+      case 'daysRemaining': return (i) => i.daysRemaining;
+      case 'burnRate':      return (i) => i.dailyBurnRate;
+      case 'updated':       return (i) => i.updatedAt;
+      default:              return (i) => i.productName;
+    }
+  }
+
+  const sortedGroups = $derived(
+    sort
+      ? officeGroups.map((g) => ({
+          ...g,
+          items: [...g.items].sort(compareBy(getter(sort.field), sort.dir)),
+        }))
+      : officeGroups,
+  );
 
   /** Tailwind classes for each colour state */
   const colorClasses: Record<ForecastColor, { badge: string; row: string; text: string }> = {
@@ -72,7 +99,7 @@
     <p class="text-gray-400 text-sm">No inventory data yet. Record some transactions to get started.</p>
   {:else}
     <div class="space-y-6">
-      {#each officeGroups as group (group.officeId)}
+      {#each sortedGroups as group (group.officeId)}
         <div class="border rounded overflow-hidden">
           <div class="bg-gray-50 px-4 py-2 border-b">
             <h2 class="font-medium text-sm">{group.officeNumber} — {group.officeName}</h2>
@@ -81,11 +108,11 @@
           <table class="w-full text-sm min-w-[480px]">
             <thead>
               <tr class="border-b text-left text-gray-500">
-                <th class="py-2 px-4 font-medium">Product</th>
-                <th class="py-2 px-4 font-medium text-right">Qty</th>
-                <th class="py-2 px-4 font-medium text-right">Days remaining</th>
-                <th class="py-2 px-4 font-medium text-right">Burn rate</th>
-                <th class="py-2 px-4 font-medium text-right">Updated</th>
+                <th class="py-2 px-4 font-medium"><SortHeader label="Product"        field="product"       current={sort} /></th>
+                <th class="py-2 px-4 font-medium text-right"><SortHeader label="Qty"            field="qty"           current={sort} align="right" /></th>
+                <th class="py-2 px-4 font-medium text-right"><SortHeader label="Days remaining" field="daysRemaining" current={sort} align="right" /></th>
+                <th class="py-2 px-4 font-medium text-right"><SortHeader label="Burn rate"      field="burnRate"      current={sort} align="right" /></th>
+                <th class="py-2 px-4 font-medium text-right"><SortHeader label="Updated"        field="updated"       current={sort} align="right" /></th>
               </tr>
             </thead>
             <tbody>
