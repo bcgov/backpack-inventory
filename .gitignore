@@ -9,3 +9,4 @@ docs/*
 uploads/receipts/
 .svelte-kit/*
 graphify-out/*
+.DS_Store
