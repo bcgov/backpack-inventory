@@ -20,7 +20,7 @@
   {#each [
     { key: 'order_placed',    label: 'Order placed',    template: data.placed },
     { key: 'order_cancelled', label: 'Order cancelled', template: data.cancelled },
-  ] as card (card.key)}
+  ] as const as card (card.key)}
     <form method="POST" action="?/save" use:enhance class="border rounded p-4 space-y-3">
       <h2 class="font-semibold text-gray-800">{card.label} email</h2>
       <input type="hidden" name="key" value={card.key} />
