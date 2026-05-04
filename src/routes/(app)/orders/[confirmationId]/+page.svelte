@@ -1,7 +1,7 @@
 <script lang="ts">
   import { base } from '$app/paths';
-  import type { PageData } from './$types';
-  let { data }: { data: PageData } = $props();
+  import type { PageData, ActionData } from './$types';
+  let { data, form }: { data: PageData; form: ActionData } = $props();
   const order      = $derived(data.detail.order);
   const lineItems  = $derived(data.detail.lineItems);
   const events     = $derived(data.detail.receiveEvents);
@@ -53,6 +53,36 @@
       </tbody>
     </table>
   </div>
+
+  {#if order.status === 'pending' || order.status === 'partial'}
+    <h2 class="font-semibold text-gray-800 mt-6 mb-2">Receive items</h2>
+    {#if form?.success}
+      <div class="mb-3 rounded bg-green-50 border border-green-200 p-3 text-green-800 text-sm">Items received.</div>
+    {/if}
+    {#if form?.error}
+      <div class="mb-3 rounded bg-red-50 border border-red-200 p-3 text-red-800 text-sm">{form.error}</div>
+    {/if}
+    <form method="POST" action="?/receive" enctype="multipart/form-data" class="border rounded p-3 space-y-3">
+      {#each lineItems.filter((li) => li.remaining > 0) as li (li.id)}
+        <div class="flex justify-between items-center">
+          <span class="text-sm">{li.productName ?? li.otherDescription ?? 'Unknown'} <span class="text-gray-500">(remaining: {li.remaining})</span></span>
+          <input type="number" min="0" name="rcv:{li.id}" value={li.remaining}
+                 class="w-20 rounded border-gray-300 text-sm py-1 px-2 border text-right" />
+        </div>
+      {/each}
+      <div>
+        <label class="block text-xs text-gray-500 mb-1" for="rcv-notes">Notes</label>
+        <textarea id="rcv-notes" name="notes" rows="2" class="w-full rounded border-gray-300 text-sm py-2 px-3 border bg-white"></textarea>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1" for="rcv-receipt">Shipping receipt (optional)</label>
+        <input id="rcv-receipt" name="shippingReceipt" type="file" class="text-sm" />
+      </div>
+      <button type="submit" class="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+        Record receipt
+      </button>
+    </form>
+  {/if}
 
   {#if order.status === 'cancelled'}
     <div class="mt-6 border rounded p-4 bg-gray-50">
