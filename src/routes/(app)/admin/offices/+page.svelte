@@ -2,6 +2,7 @@
   import { enhance } from '$app/forms';
   import { page } from '$app/state';
   import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import RecipientsEditor from '$lib/components/app/RecipientsEditor.svelte';
   import { parseSortParam, compareBy } from '$lib/utils/sort.js';
   import type { PageData, ActionData } from './$types';
 
@@ -42,6 +43,7 @@
         <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Team"   field="team"   current={sort} /></th>
         <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Region" field="region" current={sort} /></th>
         <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Status" field="status" current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600">Recipients</th>
         <th class="px-3 py-2"></th>
       </tr>
     </thead>
@@ -58,6 +60,9 @@
                          {o.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">
               {o.isActive ? 'Active' : 'Inactive'}
             </span>
+          </td>
+          <td class="px-3 py-2">
+            <RecipientsEditor officeId={o.id} initialEmails={data.recipientsByOffice[o.id] ?? []} />
           </td>
           <td class="px-3 py-2">
             <form method="POST" action="?/toggleOffice" use:enhance>
