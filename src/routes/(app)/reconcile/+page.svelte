@@ -1,10 +1,31 @@
 <script lang="ts">
+  import { page } from '$app/state';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import { parseSortParam, compareBy } from '$lib/utils/sort.js';
   import type { PageData } from './$types';
   let { data }: { data: PageData } = $props();
 
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString('en-CA');
   }
+
+  const sort = $derived(parseSortParam(page.url));
+
+  type Count = (typeof data.counts)[number];
+
+  function getter(field: string): (c: Count) => unknown {
+    switch (field) {
+      case 'confirmationId': return (c) => c.confirmationId;
+      case 'office':         return (c) => c.officeNumber;
+      case 'submittedBy':    return (c) => c.performedByName;
+      case 'date':           return (c) => c.createdAt;
+      default:               return (c) => c.createdAt;
+    }
+  }
+
+  const sortedCounts = $derived(
+    sort ? [...data.counts].sort(compareBy(getter(sort.field), sort.dir)) : data.counts,
+  );
 </script>
 
 <div class="max-w-4xl mx-auto">
@@ -17,15 +38,15 @@
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="border-b text-left text-gray-500">
-            <th class="py-2 pr-4 font-medium">Confirmation ID</th>
-            <th class="py-2 pr-4 font-medium">Office</th>
-            <th class="py-2 pr-4 font-medium">Submitted by</th>
-            <th class="py-2 pr-4 font-medium">Date</th>
+            <th class="py-2 pr-4 font-medium"><SortHeader label="Confirmation ID" field="confirmationId" current={sort} /></th>
+            <th class="py-2 pr-4 font-medium"><SortHeader label="Office"          field="office"         current={sort} /></th>
+            <th class="py-2 pr-4 font-medium"><SortHeader label="Submitted by"    field="submittedBy"    current={sort} /></th>
+            <th class="py-2 pr-4 font-medium"><SortHeader label="Date"            field="date"           current={sort} /></th>
             <th class="py-2 font-medium"></th>
           </tr>
         </thead>
         <tbody>
-          {#each data.counts as count (count.transactionId)}
+          {#each sortedCounts as count (count.transactionId)}
             <tr class="border-b hover:bg-gray-50">
               <td class="py-2 pr-4 font-mono">{count.confirmationId}</td>
               <td class="py-2 pr-4">{count.officeNumber} – {count.officeName}</td>
