@@ -1,5 +1,6 @@
 // src/lib/server/services/audit.ts
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import { getOfficeIdsForUser } from './scope.js';
 import type { SessionUser, InventoryAction } from '$lib/types.js';
 
@@ -10,9 +11,16 @@ export interface AuditFilters {
   officeId?:          string;
   action?:            InventoryAction;
   performedByUserId?: string;
-  dateFrom?:          string; // ISO date string YYYY-MM-DD
-  dateTo?:            string; // ISO date string YYYY-MM-DD
+  dateFrom?:          string;
+  dateTo?:            string;
 }
+
+export type AuditSortField = 'id' | 'action' | 'office' | 'performedBy' | 'recordedBy' | 'date';
+export interface AuditSort { field: AuditSortField; dir: 'asc' | 'desc' }
+
+export const AUDIT_SORT_FIELDS: ReadonlySet<AuditSortField> = new Set([
+  'id', 'action', 'office', 'performedBy', 'recordedBy', 'date',
+]);
 
 const DEFAULT_PAGE_SIZE = 50;
 
@@ -22,6 +30,7 @@ export async function getAuditLog(
   user:    SessionUser,
   filters: AuditFilters,
   paging:  { page?: number; pageSize?: number } = {},
+  sort?:   AuditSort,
 ) {
   const officeIds = await getOfficeIdsForUser(db, schema, user);
   if (!officeIds.length) return { rows: [], total: 0 };
@@ -29,26 +38,41 @@ export async function getAuditLog(
   const page     = paging.page     ?? 0;
   const pageSize = paging.pageSize ?? DEFAULT_PAGE_SIZE;
 
-  // Build WHERE conditions
   const conditions = [inArray(schema.transactions.officeId, officeIds)];
-
   if (filters.officeId)          conditions.push(eq(schema.transactions.officeId,          filters.officeId));
-  if (filters.action)            conditions.push(eq(schema.transactions.action,             filters.action));
+  if (filters.action)            conditions.push(eq(schema.transactions.action,            filters.action));
   if (filters.performedByUserId) conditions.push(eq(schema.transactions.performedByUserId, filters.performedByUserId));
-  if (filters.dateFrom)          conditions.push(gte(schema.transactions.createdAt,         filters.dateFrom));
-  if (filters.dateTo)            conditions.push(lte(schema.transactions.createdAt,         filters.dateTo + 'T23:59:59Z'));
+  if (filters.dateFrom)          conditions.push(gte(schema.transactions.createdAt,        filters.dateFrom));
+  if (filters.dateTo)            conditions.push(lte(schema.transactions.createdAt,        filters.dateTo + 'T23:59:59Z'));
 
   const where = and(...conditions);
 
-  // Total count (for pagination UI)
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)` })
     .from(schema.transactions)
     .where(where);
-
   const total = Number(count);
 
-  // Paginated transaction rows
+  const performer = alias(schema.users, 'performer');
+  const recorder  = alias(schema.users, 'recorder');
+
+  const sortField = sort && AUDIT_SORT_FIELDS.has(sort.field) ? sort.field : null;
+  const dirFn = sort?.dir === 'asc' ? asc : desc;
+
+  const orderByClauses = (() => {
+    switch (sortField) {
+      case 'id':          return [dirFn(schema.transactions.confirmationId)];
+      case 'action':      return [dirFn(schema.transactions.action)];
+      case 'office':      return [dirFn(schema.offices.officeNumber)];
+      case 'performedBy': return [dirFn(performer.name)];
+      case 'recordedBy':  return [dirFn(recorder.name)];
+      case 'date':        return [dirFn(schema.transactions.createdAt)];
+      default:            return [desc(schema.transactions.createdAt)];
+    }
+  })();
+  // Stable tie-breaker for cross-page ordering.
+  orderByClauses.push(desc(schema.transactions.id));
+
   const txns = await db
     .select({
       id:                schema.transactions.id,
@@ -61,30 +85,20 @@ export async function getAuditLog(
       recordedByUserId:  schema.transactions.recordedByUserId,
       notes:             schema.transactions.notes,
       createdAt:         schema.transactions.createdAt,
+      performedByName:   performer.name,
+      recordedByName:    recorder.name,
     })
     .from(schema.transactions)
-    .innerJoin(schema.offices, eq(schema.transactions.officeId, schema.offices.id))
+    .innerJoin(schema.offices, eq(schema.transactions.officeId,        schema.offices.id))
+    .innerJoin(performer,      eq(schema.transactions.performedByUserId, performer.id))
+    .innerJoin(recorder,       eq(schema.transactions.recordedByUserId,  recorder.id))
     .where(where)
-    .orderBy(desc(schema.transactions.createdAt))
+    .orderBy(...orderByClauses)
     .limit(pageSize)
     .offset(page * pageSize);
 
   if (!txns.length) return { rows: [], total };
 
-  // Fetch user names for all unique user IDs on this page
-  const userIds = [...new Set([
-    ...txns.map((t: { performedByUserId: string }) => t.performedByUserId),
-    ...txns.map((t: { recordedByUserId: string }) => t.recordedByUserId),
-  ])];
-
-  const userRows = await db
-    .select({ id: schema.users.id, name: schema.users.name })
-    .from(schema.users)
-    .where(inArray(schema.users.id, userIds));
-
-  const userMap = new Map<string, string>(userRows.map((u: { id: string; name: string }) => [u.id, u.name]));
-
-  // Fetch line items for this page of transactions
   const txnIds = txns.map((t: { id: string }) => t.id);
   const lineItemRows = await db
     .select({
@@ -98,7 +112,6 @@ export async function getAuditLog(
     .innerJoin(schema.products, eq(schema.transactionLineItems.productId, schema.products.id))
     .where(inArray(schema.transactionLineItems.transactionId, txnIds));
 
-  // Group line items by transactionId
   const lineItemMap = new Map<string, typeof lineItemRows>();
   for (const li of lineItemRows) {
     const list = lineItemMap.get(li.transactionId) ?? [];
@@ -110,12 +123,11 @@ export async function getAuditLog(
     id: string; confirmationId: string; action: string;
     officeId: string; officeName: string; officeNumber: string;
     performedByUserId: string; recordedByUserId: string;
+    performedByName: string; recordedByName: string;
     notes: string | null; createdAt: string;
   }) => ({
     ...t,
-    performedByName: userMap.get(t.performedByUserId) ?? t.performedByUserId,
-    recordedByName:  userMap.get(t.recordedByUserId)  ?? t.recordedByUserId,
-    lineItems:       lineItemMap.get(t.id) ?? [],
+    lineItems: lineItemMap.get(t.id) ?? [],
   }));
 
   return { rows, total };

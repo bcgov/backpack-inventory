@@ -73,4 +73,61 @@ describe('getAuditLog', () => {
     const { rows } = await getAuditLog(ctx.db, ctx.schema, noScope, {});
     expect(rows).toHaveLength(0);
   });
+
+  describe('with sort parameter', () => {
+    beforeEach(async () => {
+      // Three transactions with different actions and different performers,
+      // created with a slight delay so createdAt ordering is deterministic.
+      const otherUserId = seedTestUser(ctx.db, { name: 'Alice', role: 'ci_specialist', teamId: 'team-test', regionId: 'region-test' });
+      await createTransaction(ctx.db, ctx.schema, supervisor, {
+        action: 'receive', officeId: 'office-test', performedByUserId: supervisorId,
+        lineItems: [{ productId: 'prod-test', quantity: 1 }],
+      });
+      await new Promise((r) => setTimeout(r, 5));
+      await createTransaction(ctx.db, ctx.schema, supervisor, {
+        action: 'remove', officeId: 'office-test', performedByUserId: otherUserId,
+        lineItems: [{ productId: 'prod-test', quantity: 1 }],
+      });
+      await new Promise((r) => setTimeout(r, 5));
+      await createTransaction(ctx.db, ctx.schema, supervisor, {
+        action: 'return', officeId: 'office-test', performedByUserId: supervisorId,
+        lineItems: [{ productId: 'prod-test', quantity: 1 }],
+      });
+    });
+
+    it('sorts by action ascending', async () => {
+      const { rows } = await getAuditLog(ctx.db, ctx.schema, supervisor, {}, {}, { field: 'action', dir: 'asc' });
+      expect(rows.map((r: { action: string }) => r.action)).toEqual(['receive', 'remove', 'return']);
+    });
+
+    it('sorts by action descending', async () => {
+      const { rows } = await getAuditLog(ctx.db, ctx.schema, supervisor, {}, {}, { field: 'action', dir: 'desc' });
+      expect(rows.map((r: { action: string }) => r.action)).toEqual(['return', 'remove', 'receive']);
+    });
+
+    it('sorts by date ascending (oldest first)', async () => {
+      const { rows } = await getAuditLog(ctx.db, ctx.schema, supervisor, {}, {}, { field: 'date', dir: 'asc' });
+      expect(rows[0].action).toBe('receive');
+      expect(rows[2].action).toBe('return');
+    });
+
+    it('sorts by performedBy user name ascending (Alice before Sup)', async () => {
+      const { rows } = await getAuditLog(ctx.db, ctx.schema, supervisor, {}, {}, { field: 'performedBy', dir: 'asc' });
+      expect(rows[0].performedByName).toBe('Alice');
+    });
+
+    it('sorts by office number', async () => {
+      const { rows } = await getAuditLog(ctx.db, ctx.schema, supervisor, {}, {}, { field: 'office', dir: 'asc' });
+      // Only one office in scope; assertion is that the call doesn't throw and returns rows.
+      expect(rows.length).toBe(3);
+    });
+
+    it('falls back to default ordering on unknown field', async () => {
+      // @ts-expect-error - intentionally invalid field
+      const { rows } = await getAuditLog(ctx.db, ctx.schema, supervisor, {}, {}, { field: 'bogus', dir: 'asc' });
+      // Default is createdAt desc — newest first
+      expect(rows[0].action).toBe('return');
+      expect(rows[2].action).toBe('receive');
+    });
+  });
 });
