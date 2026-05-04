@@ -1,10 +1,11 @@
 // src/routes/(app)/audit-log/+page.server.ts
 import type { PageServerLoad } from './$types';
 import { getDb, getSchema } from '$lib/server/db/index.js';
-import { getAuditLog, type AuditFilters } from '$lib/server/services/audit.js';
+import { getAuditLog, AUDIT_SORT_FIELDS, type AuditFilters, type AuditSortField, type AuditSort } from '$lib/server/services/audit.js';
 import { getOfficesForUser } from '$lib/server/services/scope.js';
 import { getUsersInScope } from '$lib/server/services/users.js';
 import { INVENTORY_ACTIONS } from '$lib/types.js';
+import { parseSortParam } from '$lib/utils/sort.js';
 
 const PAGE_SIZE = 50;
 
@@ -23,8 +24,14 @@ export const load: PageServerLoad = async ({ locals, url }) => {
   };
   const page = parseInt(url.searchParams.get('page') ?? '0', 10);
 
+  const parsed = parseSortParam(url);
+  const sort: AuditSort | undefined =
+    parsed && AUDIT_SORT_FIELDS.has(parsed.field as AuditSortField)
+      ? { field: parsed.field as AuditSortField, dir: parsed.dir }
+      : undefined;
+
   const [{ rows, total }, offices, users] = await Promise.all([
-    getAuditLog(db, schema, user, filters, { page, pageSize: PAGE_SIZE }),
+    getAuditLog(db, schema, user, filters, { page, pageSize: PAGE_SIZE }, sort),
     getOfficesForUser(db, schema, user),
     getUsersInScope(db, schema, user),
   ]);
@@ -38,5 +45,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
     offices,
     users,
     actions: INVENTORY_ACTIONS,
+    sort: sort ?? null,
   };
 };

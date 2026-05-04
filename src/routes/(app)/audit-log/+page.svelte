@@ -1,6 +1,7 @@
 <!-- src/routes/(app)/audit-log/+page.svelte -->
 <script lang="ts">
   import type { PageData } from './$types';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
   let { data }: { data: PageData } = $props();
 
   const rows     = $derived(data.rows);
@@ -11,6 +12,7 @@
   const offices  = $derived(data.offices);
   const users    = $derived(data.users);
   const actions  = $derived(data.actions);
+  const sort     = $derived(data.sort);
   const totalPages = $derived(Math.ceil(total / pageSize));
 
   const ACTION_LABELS: Record<string, string> = {
@@ -118,13 +120,13 @@
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="border-b text-left text-gray-500">
-            <th class="py-2 pr-3 font-medium">ID</th>
-            <th class="py-2 pr-3 font-medium">Action</th>
-            <th class="py-2 pr-3 font-medium">Office</th>
+            <th class="py-2 pr-3 font-medium"><SortHeader label="ID"           field="id"          current={sort} /></th>
+            <th class="py-2 pr-3 font-medium"><SortHeader label="Action"       field="action"      current={sort} /></th>
+            <th class="py-2 pr-3 font-medium"><SortHeader label="Office"       field="office"      current={sort} /></th>
             <th class="py-2 pr-3 font-medium">Items</th>
-            <th class="py-2 pr-3 font-medium">Performed by</th>
-            <th class="py-2 pr-3 font-medium">Recorded by</th>
-            <th class="py-2 font-medium">Date</th>
+            <th class="py-2 pr-3 font-medium"><SortHeader label="Performed by" field="performedBy" current={sort} /></th>
+            <th class="py-2 pr-3 font-medium"><SortHeader label="Recorded by"  field="recordedBy"  current={sort} /></th>
+            <th class="py-2 font-medium"><SortHeader label="Date"               field="date"        current={sort} /></th>
           </tr>
         </thead>
         <tbody>
