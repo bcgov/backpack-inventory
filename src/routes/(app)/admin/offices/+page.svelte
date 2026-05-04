@@ -1,8 +1,31 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { page } from '$app/state';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import { parseSortParam, compareBy } from '$lib/utils/sort.js';
   import type { PageData, ActionData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
+
+  const sort = $derived(parseSortParam(page.url));
+
+  type Office = (typeof data.offices)[number];
+
+  function getter(field: string): (o: Office) => unknown {
+    switch (field) {
+      case 'number': return (o) => o.officeNumber;
+      case 'name':   return (o) => o.name;
+      case 'type':   return (o) => o.officeType;
+      case 'team':   return (o) => o.teamName;
+      case 'region': return (o) => o.regionName;
+      case 'status': return (o) => o.isActive ? 1 : 0;
+      default:       return (o) => o.officeNumber;
+    }
+  }
+
+  const sortedOffices = $derived(
+    sort ? [...data.offices].sort(compareBy(getter(sort.field), sort.dir)) : data.offices,
+  );
 </script>
 
 {#if form?.error}
@@ -13,17 +36,17 @@
   <table class="min-w-full text-sm">
     <thead class="bg-gray-50">
       <tr>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">#</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Name</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Type</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Team</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Region</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Status</th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="#"      field="number" current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Name"   field="name"   current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Type"   field="type"   current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Team"   field="team"   current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Region" field="region" current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Status" field="status" current={sort} /></th>
         <th class="px-3 py-2"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
-      {#each data.offices as o (o.id)}
+      {#each sortedOffices as o (o.id)}
         <tr class="hover:bg-gray-50 {o.isActive ? '' : 'opacity-50'}">
           <td class="px-3 py-2 text-gray-500">{o.officeNumber}</td>
           <td class="px-3 py-2 font-medium">{o.name}</td>
