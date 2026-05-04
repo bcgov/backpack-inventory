@@ -16,6 +16,37 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { sql } from 'drizzle-orm';
 import * as schema from './schema/sqlite.js';
+import { emailTemplates } from './schema/sqlite.js';
+
+const DEFAULT_TEMPLATES = [
+  {
+    key: 'order_placed',
+    subject: 'New backpack inventory order — {officeNumber} {officeName} ({orderId})',
+    body: [
+      'A new order has been placed for {officeNumber} {officeName} by {createdBy}.',
+      '',
+      'Items requested:',
+      '{itemList}',
+      '',
+      'Notes: {notes}',
+      '',
+      'Order ID: {orderId}',
+    ].join('\n'),
+  },
+  {
+    key: 'order_cancelled',
+    subject: 'Cancelled — backpack inventory order {orderId}',
+    body: [
+      'Order {orderId} for {officeNumber} {officeName} has been cancelled by {cancelledBy}.',
+      '',
+      'Items already received (no action needed):',
+      '{itemsAlreadyReceived}',
+      '',
+      'Items no longer expected:',
+      '{itemsRemaining}',
+    ].join('\n'),
+  },
+];
 
 // ─── Connection ───────────────────────────────────────────────────────────────
 
@@ -289,6 +320,16 @@ async function seed() {
     totalProducts += items.length + 1;
   }
   console.log(`  ✓ ${PRODUCT_DATA.length} categories, ${totalProducts} products`);
+
+  console.log('  ✓ seeding default email templates');
+  for (const t of DEFAULT_TEMPLATES) {
+    await db.insert(emailTemplates).values({
+      id: randomUUID(),
+      key: t.key,
+      subject: t.subject,
+      body: t.body,
+    }).onConflictDoNothing({ target: emailTemplates.key }).run();
+  }
 
   console.log('\n✅ Seed complete.');
   sqlite.close();

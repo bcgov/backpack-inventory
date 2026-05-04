@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { randomUUID } from 'crypto';
 import * as schema from './schema/sqlite.js';
+import type { OrderStatus } from '$lib/types.js';
 
 export function createTestDb() {
   const sqlite = new Database(':memory:');
@@ -68,4 +69,36 @@ export function seedTestUser(
     updatedAt: now,
   }).run();
   return id;
+}
+
+export function seedTestOrder(
+  db: ReturnType<typeof createTestDb>['db'],
+  opts: {
+    officeId?: string;
+    productId?: string;
+    quantityOrdered?: number;
+    status?: OrderStatus;
+    createdByUserId?: string;
+  } = {},
+) {
+  const orderId = crypto.randomUUID();
+  const lineItemId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  db.insert(schema.orders).values({
+    id: orderId,
+    confirmationId: orderId.slice(0, 8).toUpperCase(),
+    officeId: opts.officeId ?? 'office-test',
+    status: opts.status ?? 'pending',
+    createdByUserId: opts.createdByUserId ?? 'user-test',
+    createdAt: now,
+  }).run();
+  db.insert(schema.orderLineItems).values({
+    id: lineItemId,
+    orderId,
+    productId: opts.productId ?? 'prod-test',
+    isOther: false,
+    quantityOrdered: opts.quantityOrdered ?? 5,
+    quantityReceived: 0,
+  }).run();
+  return { orderId, lineItemId };
 }
