@@ -17,6 +17,7 @@
     { href: `${base}/transactions/redistribute`, label: 'Redistribute' },
     { href: `${base}/inventory-count`,           label: 'Inventory Count' },
     { href: `${base}/reconcile`,                 label: 'Reconcile' },
+    { href: `${base}/orders`,                    label: 'Orders' },
     { href: `${base}/audit-log`,                 label: 'Audit Log' },
     { href: `${base}/reports`,                   label: 'Reports' },
   ];
