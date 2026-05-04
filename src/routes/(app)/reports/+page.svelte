@@ -1,6 +1,9 @@
 <!-- src/routes/(app)/reports/+page.svelte -->
 <script lang="ts">
   import type { PageData } from './$types';
+  import { page } from '$app/state';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import { parseSortParam, compareBy } from '$lib/utils/sort.js';
   let { data }: { data: PageData } = $props();
 
   const ACTION_LABELS: Record<string, string> = {
@@ -34,6 +37,45 @@
   function staffCell(userId: string, action: string): number {
     return staffUsage.find(r => r.userId === userId && r.action === action)?.txnCount ?? 0;
   }
+
+  const historySort = $derived(parseSortParam(page.url, 'history'));
+  const staffSort   = $derived(parseSortParam(page.url, 'staff'));
+
+  // Helper: total items across actions for one month row
+  function monthItemsTotal(month: string): number {
+    return history.filter((r) => r.month === month).reduce((s, r) => s + r.totalItems, 0);
+  }
+
+  // Helper: items moved for one month/action cell
+  function monthActionItems(month: string, action: string): number {
+    return historyCell(month, action)?.totalItems ?? 0;
+  }
+
+  const sortedMonths = $derived.by(() => {
+    if (!historySort) return months;
+    const dir = historySort.dir;
+    if (historySort.field === 'month')  return [...months].sort(compareBy<string>((m) => m, dir));
+    if (historySort.field === 'total')  return [...months].sort(compareBy<string>((m) => monthItemsTotal(m), dir));
+    // Action column — sort by totalItems for that action
+    return [...months].sort(compareBy<string>((m) => monthActionItems(m, historySort.field), dir));
+  });
+
+  // Default for staff: Total desc when no explicit sort
+  function staffTotal(userId: string): number {
+    return staffActions.reduce((s, a) => s + staffCell(userId, a), 0);
+  }
+
+  const sortedStaffMembers = $derived.by(() => {
+    const effective = staffSort ?? { field: 'total', dir: 'desc' as const };
+    if (effective.field === 'staff') {
+      return [...staffMembers].sort(compareBy<[string, string]>(([, name]) => name, effective.dir));
+    }
+    if (effective.field === 'total') {
+      return [...staffMembers].sort(compareBy<[string, string]>(([id]) => staffTotal(id), effective.dir));
+    }
+    // Action column
+    return [...staffMembers].sort(compareBy<[string, string]>(([id]) => staffCell(id, effective.field), effective.dir));
+  });
 </script>
 
 <div class="max-w-5xl mx-auto space-y-10">
@@ -83,15 +125,19 @@
         <table class="w-full text-sm border-collapse">
           <thead>
             <tr class="border-b text-left text-gray-500">
-              <th class="py-2 pr-4 font-medium">Month</th>
+              <th class="py-2 pr-4 font-medium"><SortHeader label="Month" field="month" current={historySort} paramPrefix="history" /></th>
               {#each historyActions as action (action)}
-                <th class="py-2 pr-4 font-medium text-right">{ACTION_LABELS[action] ?? action}</th>
+                <th class="py-2 pr-4 font-medium text-right">
+                  <SortHeader label={ACTION_LABELS[action] ?? action} field={action} current={historySort} paramPrefix="history" align="right" />
+                </th>
               {/each}
-              <th class="py-2 font-medium text-right">Total items moved</th>
+              <th class="py-2 font-medium text-right">
+                <SortHeader label="Total items moved" field="total" current={historySort} paramPrefix="history" align="right" />
+              </th>
             </tr>
           </thead>
           <tbody>
-            {#each months as month (month)}
+            {#each sortedMonths as month (month)}
               <tr class="border-b hover:bg-gray-50">
                 <td class="py-2 pr-4 font-medium">{month}</td>
                 {#each historyActions as action (action)}
@@ -126,15 +172,19 @@
         <table class="w-full text-sm border-collapse">
           <thead>
             <tr class="border-b text-left text-gray-500">
-              <th class="py-2 pr-4 font-medium">Staff member</th>
+              <th class="py-2 pr-4 font-medium"><SortHeader label="Staff member" field="staff" current={staffSort} paramPrefix="staff" /></th>
               {#each staffActions as action (action)}
-                <th class="py-2 pr-4 font-medium text-right">{ACTION_LABELS[action] ?? action}</th>
+                <th class="py-2 pr-4 font-medium text-right">
+                  <SortHeader label={ACTION_LABELS[action] ?? action} field={action} current={staffSort} paramPrefix="staff" align="right" />
+                </th>
               {/each}
-              <th class="py-2 font-medium text-right">Total</th>
+              <th class="py-2 font-medium text-right">
+                <SortHeader label="Total" field="total" current={staffSort} paramPrefix="staff" align="right" />
+              </th>
             </tr>
           </thead>
           <tbody>
-            {#each staffMembers as [userId, userName] (userId)}
+            {#each sortedStaffMembers as [userId, userName] (userId)}
               {@const total = staffActions.reduce((sum, a) => sum + staffCell(userId, a), 0)}
               <tr class="border-b hover:bg-gray-50">
                 <td class="py-2 pr-4">{userName}</td>
