@@ -61,6 +61,7 @@ Key variables in `.env`:
 |---|---|
 | `DB_DRIVER` | `sqlite` (default) or `postgres` |
 | `DATABASE_URL` | `file:./dev.db` for SQLite, or a Postgres connection string |
+| `UPLOADS_DIR` | Root directory for uploaded files (default `./uploads`). Set to a PVC-backed path in production. |
 | `DEV_AUTH_USER_ID` | Set to any string to skip OAuth in local dev (auto-creates a manager user) |
 | `AUTH_SECRET` | Secret for signing Auth.js JWTs (`openssl rand -base64 32`) |
 | `OIDC_ISSUER` | Your OIDC provider's issuer URL |
@@ -106,6 +107,17 @@ npm run preview
 ```
 
 The app uses `@sveltejs/adapter-node` and produces a standard Node.js server. Deploy by running the output in `build/` with `node build`.
+
+### Production persistence (SQLite on a PVC)
+
+When deploying with SQLite, both the database file and uploaded shipping receipts must live on a persistent volume — otherwise pod restarts wipe them. Mount a single PVC (e.g. at `/data`) and point the app at sub-paths inside it:
+
+| Variable | Example value |
+|---|---|
+| `DATABASE_URL` | `file:/data/db/app.db` |
+| `UPLOADS_DIR` | `/data/uploads` |
+
+`entrypoint.sh` creates `/data/db/` and `/data/uploads/receipts/` on first boot, then runs `scripts/init-db.mjs` if the database file doesn't exist yet (applies migrations and seeds reference data). On OpenShift, set `securityContext.fsGroup: 0` on the pod so the arbitrary UID the platform assigns can write to the mounted volume.
 
 ## Testing
 

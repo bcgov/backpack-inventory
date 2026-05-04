@@ -1,7 +1,8 @@
 import { fail } from '@sveltejs/kit';
 import { writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
+import { extname, join } from 'node:path';
+import { env } from '$env/dynamic/private';
 import type { PageServerLoad, Actions } from './$types';
 import { getDb, getSchema } from '$lib/server/db/index.js';
 import { getOfficesForUser } from '$lib/server/services/scope.js';
@@ -49,10 +50,11 @@ export const actions: Actions = {
     let shippingReceiptPath: string | undefined;
     const receiptFile = data.get('shippingReceipt');
     if (receiptFile instanceof File && receiptFile.size > 0) {
-      const ext      = extname(receiptFile.name) || '.bin';
-      const filename = `${randomUUID()}${ext}`;
-      const buffer   = Buffer.from(await receiptFile.arrayBuffer());
-      await writeFile(`uploads/receipts/${filename}`, buffer);
+      const ext         = extname(receiptFile.name) || '.bin';
+      const filename    = `${randomUUID()}${ext}`;
+      const buffer      = Buffer.from(await receiptFile.arrayBuffer());
+      const uploadsDir  = env.UPLOADS_DIR ?? 'uploads';
+      await writeFile(join(uploadsDir, 'receipts', filename), buffer);
       shippingReceiptPath = `receipts/${filename}`;
     }
 
