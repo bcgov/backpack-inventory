@@ -1,8 +1,30 @@
 <script lang="ts">
   import { enhance } from '$app/forms';
+  import { page } from '$app/state';
+  import SortHeader from '$lib/components/app/SortHeader.svelte';
+  import { parseSortParam, compareBy } from '$lib/utils/sort.js';
   import type { PageData, ActionData } from './$types';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
+
+  const sort = $derived(parseSortParam(page.url));
+
+  type User = (typeof data.users)[number];
+
+  function getter(field: string): (u: User) => unknown {
+    switch (field) {
+      case 'name':   return (u) => u.name;
+      case 'email':  return (u) => u.email;
+      case 'role':   return (u) => u.role;
+      case 'team':   return (u) => u.teamId ?? u.regionId ?? '';
+      case 'active': return (u) => u.isActive ? 1 : 0;
+      default:       return (u) => u.name;
+    }
+  }
+
+  const sortedUsers = $derived(
+    sort ? [...data.users].sort(compareBy(getter(sort.field), sort.dir)) : data.users,
+  );
 </script>
 
 {#if form?.error}
@@ -16,16 +38,16 @@
   <table class="min-w-full text-sm">
     <thead class="bg-gray-50">
       <tr>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Name</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Email</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Role</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Team / Region</th>
-        <th class="text-left px-3 py-2 font-medium text-gray-600">Active</th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Name"          field="name"   current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Email"         field="email"  current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Role"          field="role"   current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Team / Region" field="team"   current={sort} /></th>
+        <th class="text-left px-3 py-2 font-medium text-gray-600"><SortHeader label="Active"        field="active" current={sort} /></th>
         <th class="px-3 py-2"></th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
-      {#each data.users as u (u.id)}
+      {#each sortedUsers as u (u.id)}
         <tr class="hover:bg-gray-50">
           <td class="px-3 py-2">{u.name}</td>
           <td class="px-3 py-2 text-gray-500">{u.email}</td>
