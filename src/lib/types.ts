@@ -52,6 +52,9 @@ export const INVENTORY_COUNT_STATUSES = [
 
 export type InventoryCountStatus = (typeof INVENTORY_COUNT_STATUSES)[number];
 
+export const ORDER_STATUSES = ['pending', 'partial', 'received', 'cancelled'] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Permission matrix
 // Maps each role to the set of actions it may perform.
@@ -66,27 +69,41 @@ export type AppPermission =
   | 'reconcile_count'
   | 'view_audit_log'
   | 'view_reports'
-  | 'manage_users';
+  | 'manage_users'
+  | 'view_orders'
+  | 'create_order'
+  | 'cancel_order'
+  | 'receive_order'
+  | 'manage_email_settings';
 
 export const ROLE_PERMISSIONS: Record<UserRole, Set<AppPermission>> = {
-  ci_specialist: new Set(['add_items', 'remove_items', 'inventory_count']),
+  ci_specialist: new Set([
+    'add_items', 'remove_items', 'inventory_count',
+    'view_orders', 'receive_order',
+  ]),
   supervisor: new Set([
     'add_items', 'remove_items', 'record_on_behalf', 'inventory_count',
     'reconcile_count', 'view_audit_log', 'view_reports', 'manage_users',
+    'view_orders', 'create_order', 'cancel_order', 'receive_order',
+    'manage_email_settings',
   ]),
   assistant_supervisor: new Set([
     'add_items', 'remove_items', 'record_on_behalf', 'inventory_count',
     'reconcile_count', 'view_audit_log', 'view_reports', 'manage_users',
+    'view_orders', 'create_order', 'cancel_order', 'receive_order',
+    'manage_email_settings',
   ]),
   aaa: new Set([
     'add_items', 'remove_items', 'record_on_behalf', 'inventory_count',
     'view_audit_log', 'view_reports', 'manage_users',
+    'view_orders',
   ]),
   manager: new Set([
     'add_items', 'remove_items', 'record_on_behalf', 'inventory_count',
     'reconcile_count', 'view_audit_log', 'view_reports', 'manage_users',
+    'view_orders',
   ]),
-  director_3p: new Set(['view_reports']),
+  director_3p: new Set(['view_reports', 'view_orders']),
 };
 
 export function hasPermission(role: UserRole, permission: AppPermission): boolean {

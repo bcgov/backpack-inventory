@@ -234,6 +234,73 @@ export const currentInventory = pgTable('current_inventory', {
   ),
 }));
 
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+export const orders = pgTable('orders', {
+  id:                 text('id').primaryKey(),
+  confirmationId:     text('confirmation_id').notNull().unique(),
+  officeId:           text('office_id').notNull().references(() => offices.id),
+  // Status validated in service layer against ORDER_STATUSES
+  status:             text('status').notNull().default('pending'),
+  notes:              text('notes'),
+  createdByUserId:    text('created_by_user_id').notNull().references(() => users.id),
+  createdAt:          text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  cancelledAt:        text('cancelled_at'),
+  cancelledByUserId:  text('cancelled_by_user_id').references(() => users.id),
+  cancellationMessage:text('cancellation_message'),
+});
+
+export const orderLineItems = pgTable('order_line_items', {
+  id:               text('id').primaryKey(),
+  orderId:          text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  productId:        text('product_id').references(() => products.id),
+  isOther:          boolean('is_other').notNull().default(false),
+  otherDescription: text('other_description'),
+  quantityOrdered:  integer('quantity_ordered').notNull(),
+  quantityReceived: integer('quantity_received').notNull().default(0),
+});
+
+export const orderReceiveEvents = pgTable('order_receive_events', {
+  id:                  text('id').primaryKey(),
+  orderId:             text('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  transactionId:       text('transaction_id').notNull().references(() => transactions.id),
+  receivedByUserId:    text('received_by_user_id').notNull().references(() => users.id),
+  receivedAt:          text('received_at').notNull().$defaultFn(() => new Date().toISOString()),
+  shippingReceiptPath: text('shipping_receipt_path'),
+});
+
+export const officeEmailRecipients = pgTable('office_email_recipients', {
+  id:        text('id').primaryKey(),
+  officeId:  text('office_id').notNull().references(() => offices.id, { onDelete: 'cascade' }),
+  email:     text('email').notNull(),
+  createdAt: text('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+}, (t) => ({
+  uniqOfficeEmail: uniqueIndex('office_email_recipients_office_email_idx').on(t.officeId, t.email),
+}));
+
+export const emailTemplates = pgTable('email_templates', {
+  id:        text('id').primaryKey(),
+  // 'order_placed' | 'order_cancelled'
+  key:       text('key').notNull().unique(),
+  subject:   text('subject').notNull(),
+  body:      text('body').notNull(),
+  updatedAt: text('updated_at').notNull().$defaultFn(() => new Date().toISOString()),
+});
+
+export const emailOutbox = pgTable('email_outbox', {
+  id:          text('id').primaryKey(),
+  recipients:  text('recipients').notNull(),  // JSON-encoded string[]
+  subject:     text('subject').notNull(),
+  body:        text('body').notNull(),
+  sentAt:      text('sent_at').notNull().$defaultFn(() => new Date().toISOString()),
+  // null until send completes
+  success:     boolean('success'),
+  error:       text('error'),
+  // 'order_placed' | 'order_cancelled'
+  relatedKind: text('related_kind').notNull(),
+  relatedId:   text('related_id').notNull(),
+});
+
 // ─── Relations (used by Drizzle's relational query API) ───────────────────────
 
 export const regionsRelations = relations(regions, ({ many }) => ({
@@ -334,4 +401,25 @@ export const currentInventoryRelations = relations(currentInventory, ({ one }) =
     fields:     [currentInventory.productId],
     references: [products.id],
   }),
+}));
+
+export const ordersRelations = relations(orders, ({ one, many }) => ({
+  office:        one(offices,  { fields: [orders.officeId],          references: [offices.id] }),
+  createdByUser: one(users,    { fields: [orders.createdByUserId],   references: [users.id] }),
+  lineItems:     many(orderLineItems),
+  receiveEvents: many(orderReceiveEvents),
+}));
+
+export const orderLineItemsRelations = relations(orderLineItems, ({ one }) => ({
+  order:   one(orders,   { fields: [orderLineItems.orderId],   references: [orders.id] }),
+  product: one(products, { fields: [orderLineItems.productId], references: [products.id] }),
+}));
+
+export const orderReceiveEventsRelations = relations(orderReceiveEvents, ({ one }) => ({
+  order:       one(orders,       { fields: [orderReceiveEvents.orderId],       references: [orders.id] }),
+  transaction: one(transactions, { fields: [orderReceiveEvents.transactionId], references: [transactions.id] }),
+}));
+
+export const officeEmailRecipientsRelations = relations(officeEmailRecipients, ({ one }) => ({
+  office: one(offices, { fields: [officeEmailRecipients.officeId], references: [offices.id] }),
 }));
