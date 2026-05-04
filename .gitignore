@@ -6,3 +6,5 @@ dev.db
 dev.db*
 CLAUDE.md
 uploads/receipts/
+.svelte-kit/*
+graphify-out/*
