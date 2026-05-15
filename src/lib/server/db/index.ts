@@ -32,6 +32,10 @@ export type { DrizzleDB, AppSchema };
 
 let _db: DrizzleDB | undefined;
 let _schema: AppSchema | undefined;
+// Underlying driver client kept so resetDatabaseConnection() can close it
+// before destructive operations like rename/drop. Only populated for SQLite.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _sqliteClient: any | undefined;
 
 async function createConnection(): Promise<{ db: DrizzleDB; schema: AppSchema }> {
   const driver = env.DB_DRIVER ?? 'sqlite';
@@ -64,9 +68,25 @@ async function createConnection(): Promise<{ db: DrizzleDB; schema: AppSchema }>
     client.pragma('journal_mode = WAL');
     client.pragma('foreign_keys = ON');
 
+    _sqliteClient = client;
+
     const db = drizzle(client, { schema, logger: env.DB_LOG === 'true' }) as DrizzleDB;
     return { db, schema: schema as AppSchema };
   }
+}
+
+/**
+ * Close any open driver connection and clear the cached singleton so the next
+ * call to getDb()/getSchema() rebuilds it. Used by admin operations that need
+ * exclusive access to the SQLite file (e.g. renaming or recreating it).
+ */
+export async function resetDatabaseConnection(): Promise<void> {
+  if (_sqliteClient && typeof _sqliteClient.close === 'function') {
+    try { _sqliteClient.close(); } catch { /* ignore close errors */ }
+  }
+  _db = undefined;
+  _schema = undefined;
+  _sqliteClient = undefined;
 }
 
 /**

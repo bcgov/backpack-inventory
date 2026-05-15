@@ -9,6 +9,7 @@
     { href: `${base}/admin/offices`,         label: 'Offices' },
     { href: `${base}/admin/email-templates`, label: 'Email Templates' },
     { href: `${base}/admin/qr-codes`,        label: 'QR Codes' },
+    { href: `${base}/admin/database`,        label: 'Database' },
   ];
 </script>
 
