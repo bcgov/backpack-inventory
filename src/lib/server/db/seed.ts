@@ -48,15 +48,12 @@ const DEFAULT_TEMPLATES = [
   },
 ];
 
-// ─── Connection ───────────────────────────────────────────────────────────────
+// ─── Helpers (closures over the current db handle, set inside runReferenceSeed) ─
 
-const dbPath = (process.env.DATABASE_URL ?? 'file:./dev.db').replace(/^file:/, '');
-const sqlite = new Database(dbPath);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
-const db = drizzle(sqlite, { schema });
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+type Db = BetterSQLite3Database<typeof schema>;
+// Assigned inside runReferenceSeed before any helper runs.
+let db: Db = null as unknown as Db;
 
 function slugify(str: string): string {
   return str
@@ -274,6 +271,16 @@ const PRODUCT_DATA: Array<{
 
 // ─── Run seed ─────────────────────────────────────────────────────────────────
 
+/**
+ * Apply the reference seed against an externally-managed Drizzle handle.
+ * Used by both the CLI entry below and admin operations that need to re-seed
+ * a freshly-migrated database without spawning a subprocess.
+ */
+export async function runReferenceSeed(handle: BetterSQLite3Database<typeof schema>): Promise<void> {
+  db = handle;
+  await seed();
+}
+
 async function seed() {
   console.log('🌱 Seeding reference data...\n');
 
@@ -332,10 +339,22 @@ async function seed() {
   }
 
   console.log('\n✅ Seed complete.');
-  sqlite.close();
 }
 
-seed().catch((err) => {
-  console.error('❌ Seed failed:', err);
-  process.exit(1);
-});
+// ── CLI entry ────────────────────────────────────────────────────────────────
+const invokedDirectly =
+  typeof process !== 'undefined' &&
+  process.argv[1]?.endsWith('seed.ts');
+if (invokedDirectly) {
+  const dbPath = (process.env.DATABASE_URL ?? 'file:./dev.db').replace(/^file:/, '');
+  const sqlite = new Database(dbPath);
+  sqlite.pragma('journal_mode = WAL');
+  sqlite.pragma('foreign_keys = ON');
+  const handle = drizzle(sqlite, { schema });
+  runReferenceSeed(handle)
+    .then(() => sqlite.close())
+    .catch((err) => {
+      console.error('❌ Seed failed:', err);
+      process.exit(1);
+    });
+}

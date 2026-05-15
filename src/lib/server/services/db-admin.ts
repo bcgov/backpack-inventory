@@ -2,30 +2,27 @@
  * Admin operations for managing the SQLite database file itself.
  *
  *  - clearDatabase(): closes the singleton connection, renames the existing
- *    dev.db (plus WAL/SHM siblings) into db-archive/, then re-runs migrations
- *    and the reference seed via the project's npm scripts. The next request
- *    lazy-reopens the new file.
- *  - seedTestData(): runs `npm run db:seed:dev` against the current DB.
+ *    dev.db (plus WAL/SHM siblings) into <dbDir>/db-archive/ with a timestamp,
+ *    then re-runs migrations and the reference seed *in-process*. The next
+ *    request lazy-reopens the new file.
+ *  - seedTestData(): runs the dev seed against the current DB *in-process*.
  *
- * Both operations are restricted to the SQLite driver; PostgreSQL deployments
+ * Operations are restricted to the SQLite driver; PostgreSQL deployments
  * should manage their database out-of-band.
+ *
+ * NOTE: we deliberately do NOT shell out to `npm run …` here. That works on a
+ * developer laptop but fails in containerised deployments (e.g. OpenShift S2I)
+ * where the npm global path is not writable and `npx tsx` is unavailable at
+ * runtime. Calling the seed/migrate functions directly works in both.
  */
-import { promisify } from 'node:util';
-import { execFile } from 'node:child_process';
 import { rename, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { env } from '$env/dynamic/private';
 import { resetDatabaseConnection } from '$lib/server/db/index.js';
-
-const execFileAsync = promisify(execFile);
+import { runMigrations } from '$lib/server/db/migrate.js';
 
 const ARCHIVE_DIR = 'db-archive';
-const SUBPROCESS_OPTS = {
-  cwd: process.cwd(),
-  // Seed-dev writes ~2000 transactions and prints progress; allow a generous buffer.
-  maxBuffer: 32 * 1024 * 1024,
-};
 
 function getSqlitePath(): string {
   const url = env.DATABASE_URL ?? 'file:./dev.db';
@@ -44,9 +41,19 @@ function timestampSuffix(): string {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
+async function openFreshConnection(dbPath: string) {
+  const { default: Database } = await import('better-sqlite3');
+  const { drizzle }           = await import('drizzle-orm/better-sqlite3');
+  const schema                = await import('$lib/server/db/schema/sqlite.js');
+  const sqlite = new Database(dbPath);
+  sqlite.pragma('journal_mode = WAL');
+  sqlite.pragma('foreign_keys = ON');
+  const db = drizzle(sqlite, { schema });
+  return { sqlite, db, schema };
+}
+
 export interface ClearDatabaseResult {
   archivedAs: string | null;
-  stdout: string;
 }
 
 export async function clearDatabase(): Promise<ClearDatabaseResult> {
@@ -55,6 +62,9 @@ export async function clearDatabase(): Promise<ClearDatabaseResult> {
   const dbDir  = dirname(dbPath);
   const archiveDir = join(dbDir, ARCHIVE_DIR);
 
+  // Drop the cached singleton so its open file handle is released before we
+  // rename. On POSIX, rename-while-open succeeds, but the WAL/SHM siblings
+  // need the connection gone or SQLite will re-create them mid-operation.
   await resetDatabaseConnection();
 
   if (!existsSync(archiveDir)) {
@@ -76,21 +86,34 @@ export async function clearDatabase(): Promise<ClearDatabaseResult> {
     }
   }
 
-  const migrate = await execFileAsync('npm', ['run', 'db:migrate'], SUBPROCESS_OPTS);
-  const seed    = await execFileAsync('npm', ['run', 'db:seed'],    SUBPROCESS_OPTS);
+  // Apply migrations against the empty file (creates it if missing).
+  await runMigrations();
 
-  return {
-    archivedAs: archived,
-    stdout: `${migrate.stdout}\n${seed.stdout}`,
-  };
+  // Seed reference data using a one-shot connection we own and close.
+  const { sqlite, db } = await openFreshConnection(dbPath);
+  try {
+    const { runReferenceSeed } = await import('$lib/server/db/seed.js');
+    await runReferenceSeed(db);
+  } finally {
+    sqlite.close();
+  }
+
+  return { archivedAs: archived };
 }
 
-export interface SeedTestDataResult {
-  stdout: string;
-}
-
-export async function seedTestData(): Promise<SeedTestDataResult> {
+export async function seedTestData(): Promise<void> {
   assertSqlite();
-  const { stdout } = await execFileAsync('npm', ['run', 'db:seed:dev'], SUBPROCESS_OPTS);
-  return { stdout };
+  const dbPath = getSqlitePath();
+
+  // The dev seed expects a real SQLite handle (it toggles pragmas for the
+  // cleanup transaction). Use a fresh connection so we don't disturb the
+  // app's singleton while it's mid-flight serving other requests.
+  await resetDatabaseConnection();
+  const { sqlite, db, schema } = await openFreshConnection(dbPath);
+  try {
+    const { runDevSeed } = await import('$lib/server/db/seed-dev.js');
+    await runDevSeed(db, schema, sqlite);
+  } finally {
+    sqlite.close();
+  }
 }

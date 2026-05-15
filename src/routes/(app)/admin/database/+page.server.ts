@@ -11,8 +11,8 @@ export const load: PageServerLoad = async () => {
 export const actions: Actions = {
   seed: async () => {
     try {
-      const result = await seedTestData();
-      return { success: true, action: 'seed' as const, output: result.stdout };
+      await seedTestData();
+      return { success: true, action: 'seed' as const };
     } catch (e) {
       return fail(500, { error: e instanceof Error ? e.message : 'Seed failed' });
     }
@@ -25,7 +25,6 @@ export const actions: Actions = {
         success: true,
         action: 'clear' as const,
         archivedAs: result.archivedAs,
-        output: result.stdout,
       };
     } catch (e) {
       return fail(500, { error: e instanceof Error ? e.message : 'Clear failed' });
